@@ -2,11 +2,7 @@
 Webscraper for German immo sites
 
 TODO:
-    # Use slice instead of declaring two variables for url
     # Update a current market csv from individual crawls
-    # add columns 'available' and 'distance_from'
-    # split location into 'city' and 'district'
-    # rearrange columns
 '''
 
 # module imports
@@ -15,14 +11,9 @@ from bs4 import BeautifulSoup
 import pandas as pd
 from datetime import datetime
 import os
-from shutil import copyfile
-
 
 # paste complete url from the immoscout search page
-complete_url_from_immoscout = 'https://www.immobilienscout24.de/Suche/S-T/Haus-Kauf/Fahrzeitsuche/Duisburg/47058/-219844/2393066/-/-/45/-/-/-/-/-/-/14,15,17,21,24,25,119,122,126/3,4?enteredFrom=result_list'
-
-# split the url for later convinience
-url_parts = complete_url_from_immoscout.split('S-T/', 2)
+complete_url_from_immoscout = 'https://www.immobilienscout24.de/Suche/S-T/Haus-Kauf/Umkreissuche/Duisburg_2dNeudorf_2dNord/47057/-218868/2391748/Forsthausweg/-/20/-/80,00-/EURO--400000,00/-/-/-/14,15,17,21,24,25,119,122,126/2,3,4?enteredFrom=result_list'
 
 # get current date#
 current_datetime = datetime.now().strftime('%Y_%m_%d_%H_%M_%S')
@@ -36,26 +27,18 @@ def main():
 
     # initialize DataFrames with column names
     df_immo = pd.DataFrame(columns=columns)
-    #df_previous = pd.DataFrame(pd.read_csv())
 
     # fill DataFrame with data from web crawler
     df_immo = df_immo.assign(**get_data())
 
     # write the uncleaned raw data
-    #write_raw(df_immo)
+    write_raw(df_immo)
 
     # clean the data
     df_clean = clean_df(df_immo)
 
     # write the cleaned data
-    #write_clean(df_clean)
-
-    # update the current market DataFrame
-    #df_update = update_df(df_clean)
-
-    # backup previous version of current csv and overwrite
-
-    #write_update(df_update)
+    write_clean(df_clean)
 
 
 # prepare BeautifulSoup object for data extraction
@@ -95,10 +78,13 @@ def get_data():
     # initialize a dictionary for the page data lists
     page_data = {}
 
+    # split the complete url so we can link easily to multiple pages
+    url_parts = complete_url_from_immoscout.split('S-T/', 2)
+
     # get total number of pages of search results
     soup = make_soup(complete_url_from_immoscout)
     number_pages = max([int(n["value"]) for n in soup.find_all("option")])
-    
+
     # generate a link for each page of search results
     for i in range(1, number_pages + 1):
         link_list.append(url_parts[0] + 'P-' + str(i) + '/' +
@@ -127,8 +113,8 @@ def get_data():
             # add location data to list
             try:
                 city.append(results[i].find("div",
-                                {"class": "result-list-entry__address"})
-                                .get_text().strip().split(',', 2)[-1])
+                            {"class": "result-list-entry__address"})
+                            .get_text().strip().split(',', 2)[-1])
             except Exception:
                 city.append(None)
 
@@ -164,7 +150,7 @@ def get_data():
                               {"class": "float-left"}).get_text().strip()[:2])
             except Exception:
                 travel.append(None)
-            
+
             # add location data to list
             try:
                 location.append(results[i].find("div",
@@ -183,14 +169,15 @@ def get_data():
 
             # add url link to list
             try:
-                listing_url.append(url_parts[0][:32] + results[i].find('a')['href'])
+                listing_url.append(url_parts[0][:32] + results[i]
+                                   .find('a')['href'])
             except Exception:
                 listing_url.append(None)
 
             # add availablilty data to list
             available.append(True)
 
-    # invert commission values, so that a true value signifies a commission exists
+    # invert commission values
     commission = [not i for i in commission]
 
     # fill page data dictionary with lists
@@ -233,34 +220,45 @@ def clean_df(df):
     df['house_size'] = [x.strip().replace(".", "") for x in df['house_size']]
     df['land_size'] = [x.strip().replace(".", "") for x in df['land_size']]
     df['rooms'] = [x.strip().split('.', 1)[1] for x in df['rooms']]
-    
+
     return df
 
 
 # export cleaned data
 def write_clean(df):
     clean_path = os.path.join(os.getcwd(), "Results", "Clean")
+    path_to_current = os.path.join(os.getcwd(), "Results", "Current")
     if not os.path.isdir(clean_path):
         os.makedirs(clean_path)
+    if not os.path.isdir(path_to_current):
+        os.makedirs(path_to_current)
 
+    if not os.path.isfile(path_to_current + "Current_immoscout.csv"):
+        current_path_write = os.path.join(path_to_current,
+                                          "Current_immoscout.csv")
+
+        df.to_csv(current_path_write, sep=";", index=False)
     clean_path_write = os.path.join(clean_path,
                                     "clean_" + current_datetime + ".csv")
 
     df.to_csv(clean_path_write, sep=";", index=False)
 
+    copy_current_df = pd.read_csv(path_to_current + '/Current_immoscout.csv', sep=';')
+
+    df.to_csv(path_to_current + 'Backup.csv', sep=';', index=False)
+
+    previous_df = pd.read_csv(path_to_current + '/Current_immoscout.csv', sep=';')
+
 
 # update the current market DataFrame and write a copy
 def write_update(df):
     update_path = os.path.join(os.getcwd(), "Results", "Current")
-    if not os.path.isdir(update_path()):
-        os.makedirs(update_path)
-    backup_path = os.path.join(update_path, "Backup")
 
     update_path_write = os.path.join(update_path,
                                      "updated_" + current_datetime + ".csv")
     df.to_csv(update_path_write, sep=";", index=False)
 
 
-Driver code
-#if __name__ == '__main__':
-#    main()
+# Driver code
+if __name__ == '__main__':
+    main()
