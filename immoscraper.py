@@ -13,7 +13,7 @@ from datetime import datetime
 import os
 
 # paste complete url from the immoscout search page
-complete_url_from_immoscout = 'https://www.immobilienscout24.de/Suche/S-T/Haus-Kauf/Umkreissuche/Duisburg_2dNeudorf_2dNord/47057/-218868/2391748/Forsthausweg/-/20/-/80,00-/EURO--400000,00/-/-/-/14,15,17,21,24,25,119,122,126/2,3,4?enteredFrom=result_list'
+complete_url_from_immoscout = 'https://www.immobilienscout24.de/Suche/S-T/Wohnung-Kauf/Polygonsuche/ot%7BxHuwih@yg@mb@uLeBaUfJaVsOr@NkQajAj@qNxs@qiA%60OaGjUfJ%60S_Gxf@j_A%60Uc@bUeBv%5BiK%7CkAkmAni@%60%7DBqsCjuAaLhC_MzK/-/90,00-/EURO--200000,00?enteredFrom=result_list#/'
 
 # get current date#
 current_datetime = datetime.now().strftime('%Y_%m_%d_%H_%M_%S')
@@ -48,16 +48,18 @@ def make_soup(url):
     try:
         req = requests.get(url)
     except Exception:
-        print("Fehler beim Oeffnen der Website")
-
+        print("make_soup:Problem opening the website")
+        raise SystemExit(0)
     # extract from site with BeautifulSoup
     try:
-        return BeautifulSoup(req.text, "lxml")
+        return BeautifulSoup(req.text, "html.parser")
     except Exception:
-        print("Fehler beim Einlesen in BeautifulSoup")
-
+        print("make_soup:Problem reading from BeautifulSoup")
+        raise SystemExit(0)
 
 # crawl for data and output a pandas dataframe
+
+
 def get_data():
 
     # initialize lists for page data
@@ -83,9 +85,12 @@ def get_data():
 
     # get total number of pages of search results
     soup = make_soup(complete_url_from_immoscout)
-    number_pages = max([int(n["value"]) for n in soup.find_all("option")])
 
+    try:
+        number_pages = max([int(n["value"]) for n in soup.find_all("option")])
     # generate a link for each page of search results
+    except Exception:
+        number_pages = 1
     for i in range(1, number_pages + 1):
         link_list.append(url_parts[0] + 'P-' + str(i) + '/' +
                          url_parts[1])
@@ -98,10 +103,10 @@ def get_data():
             soup = make_soup(link)
             # make a list of listing results
             results = soup.find_all("div", {"class":
-                                    "result-list-entry__data"})
+                                            "result-list-entry__data"})
         except Exception:
-            print("Problem with BeautifulSoup")
-
+            print("get_data:Problem with BeautifulSoup")
+            raise SystemExit(0)
         # print which page is being searched
         print("Crawling: " + link + " (link " + str(link_count) +
               " of " + str(len(link_list)) + ")")
@@ -113,7 +118,7 @@ def get_data():
             # add location data to list
             try:
                 city.append(results[i].find("div",
-                            {"class": "result-list-entry__address"})
+                                            {"class": "result-list-entry__address"})
                             .get_text().strip().split(',', 2)[-1])
             except Exception:
                 city.append(None)
@@ -147,14 +152,14 @@ def get_data():
             # add travel time data to list
             try:
                 travel.append(results[i].find("div",
-                              {"class": "float-left"}).get_text().strip()[:2])
+                                              {"class": "float-left"}).get_text().strip()[:2])
             except Exception:
                 travel.append(None)
 
             # add location data to list
             try:
                 location.append(results[i].find("div",
-                                {"class": "result-list-entry__address"})
+                                                {"class": "result-list-entry__address"})
                                 .get_text().strip())
             except Exception:
                 location.append(None)
@@ -162,7 +167,7 @@ def get_data():
             # add commission data to list
             try:
                 commission.append(results[i].find("div", {"class":
-                                  "result-list-entry__secondary-criteria-container"})
+                                                          "result-list-entry__secondary-criteria-container"})
                                   .get_text().strip().startswith('Provisions'))
             except Exception:
                 commission.append(None)
@@ -211,7 +216,7 @@ def write_raw(df):
 # clean data
 def clean_df(df):
 
-    df = df.dropna(axis=0)
+    df = df.fillna(value='none')
     df = df.drop_duplicates()
     df['price'] = [x.strip().replace('€', '') for x in df['price']]
     df['price'] = [x.strip().replace('.', '') for x in df['price']]
@@ -245,9 +250,9 @@ def write_clean(df):
 
     copy_current_df = pd.read_csv(path_to_current + '/Current_immoscout.csv', sep=';')
 
-    df.to_csv(path_to_current + 'Backup.csv', sep=';', index=False)
+    df.to_csv(path_to_current + '/Backup.csv', sep=';', index=False)
 
-    previous_df = pd.read_csv(path_to_current + '/Current_immoscout.csv', sep=';')
+    current_df = pd.read_csv(path_to_current + '/Current_immoscout.csv', sep=';')
 
 
 # update the current market DataFrame and write a copy
