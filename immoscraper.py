@@ -13,17 +13,20 @@ from datetime import datetime
 import os
 
 # paste complete url from the immoscout search page
-complete_url_from_immoscout = 'https://www.immobilienscout24.de/Suche/S-T/Wohnung-Kauf/Polygonsuche/ot%7BxHuwih@yg@mb@uLeBaUfJaVsOr@NkQajAj@qNxs@qiA%60OaGjUfJ%60S_Gxf@j_A%60Uc@bUeBv%5BiK%7CkAkmAni@%60%7DBqsCjuAaLhC_MzK/-/90,00-/EURO--200000,00?enteredFrom=result_list#/'
+wohnung_url = 'https://www.immobilienscout24.de/Suche/S-T/Wohnung-Kauf/Polygonsuche/ot%7BxHuwih@yg@mb@uLeBaUfJaVsOr@NkQajAj@qNxs@qiA%60OaGjUfJ%60S_Gxf@j_A%60Uc@bUeBv%5BiK%7CkAkmAni@%60%7DBqsCjuAaLhC_MzK/-/80,00-/EURO--200000,00?enteredFrom=result_list#/'
+
+haus_url = wohnung_url.replace('Wohnung', 'Haus')
+
+rent_url = 'https://www.immobilienscout24.de/Suche/S-T/Wohnung-Miete/Polygonsuche/yxwxHgynh@k@e@jDO;_dyxHcmih@g%7D@oFw%5B%7DSaNvBm%5B_NaP~Fk_@%7BSkKy%60@aCkp@%60Ukb@dw@e%7C@%60Fq@%60%5DvQx%60@zp@%60POvRtPpx@aW~FzET%7CLkHvkAhBhh@aOhZ/-/80,00-/EURO--1000,00?enteredFrom=result_list#/'
 
 # get current date#
-current_datetime = datetime.now().strftime('%Y_%m_%d_%H_%M_%S')
+current_datetime = datetime.now().strftime('%Y_%m_%d')
 
 
 def main():
 
     # column names for the pandas DataFrame
-    columns = ['city', 'price', 'house_size', 'land_size', 'rooms',
-               'travel', 'location', 'commission', 'available', 'listing_url']
+    columns = ['city', 'price', 'house_size', 'land_size', 'rooms', 'location', 'commission', 'listing_url']
 
     # initialize DataFrames with column names
     df_immo = pd.DataFrame(columns=columns)
@@ -62,125 +65,115 @@ def make_soup(url):
 
 def get_data():
 
+    search_url_list = [haus_url, wohnung_url, rent_url]
+
     # initialize lists for page data
     city = []
     price = []
     house_size = []
     land_size = []
     rooms = []
-    travel = []
     location = []
     commission = []
     listing_url = []
-    available = []
-
-    # initialize list for search page links
-    link_list = []
 
     # initialize a dictionary for the page data lists
     page_data = {}
 
-    # split the complete url so we can link easily to multiple pages
-    url_parts = complete_url_from_immoscout.split('S-T/', 2)
+    for url in search_url_list:
 
-    # get total number of pages of search results
-    soup = make_soup(complete_url_from_immoscout)
+        # initialize list for search page links
+        link_list = []
+        # split the complete url so we can link easily to multiple pages
+        url_parts = url.split('S-T/', 2)
+        # get total number of pages of search results
+        soup = make_soup(url)
 
-    try:
-        number_pages = max([int(n["value"]) for n in soup.find_all("option")])
-    # generate a link for each page of search results
-    except Exception:
-        number_pages = 1
-    for i in range(1, number_pages + 1):
-        link_list.append(url_parts[0] + 'P-' + str(i) + '/' +
-                         url_parts[1])
-    link_count = 1
-
-    # get data from each page of results
-    for link in link_list:
         try:
-            # make BeautifulSoup object for data extraction
-            soup = make_soup(link)
-            # make a list of listing results
-            results = soup.find_all("div", {"class":
-                                            "result-list-entry__data"})
+            number_pages = max([int(n["value"]) for n in soup.find_all("option")])
+        # generate a link for each page of search results
         except Exception:
-            print("get_data:Problem with BeautifulSoup")
-            raise SystemExit(0)
-        # print which page is being searched
-        print("Crawling: " + link + " (link " + str(link_count) +
-              " of " + str(len(link_list)) + ")")
-        link_count += 1
+            number_pages = 1
+        for i in range(1, number_pages + 1):
+            link_list.append(url_parts[0] + 'P-' + str(i) + '/' +
+                             url_parts[1])
+        link_count = 1
 
-        # step through each listing in the search page, appending data
-        for i in range(0, len(results)):
-
-            # add location data to list
+        # get data from each page of results
+        for link in link_list:
             try:
-                city.append(results[i].find("div",
-                                            {"class": "result-list-entry__address"})
-                            .get_text().strip().split(',', 2)[-1])
+                # make BeautifulSoup object for data extraction
+                soup = make_soup(link)
+                # make a list of listing results
+                results = soup.find_all("div", {"class":
+                                                "result-list-entry__data"})
             except Exception:
-                city.append(None)
+                print("get_data:Problem with BeautifulSoup")
+                raise SystemExit(0)
+            # print which page is being searched
+            print("Crawling: " + link + " (link " + str(link_count) +
+                  " of " + str(len(link_list)) + ")")
+            link_count += 1
 
-            # add price data to list
-            try:
-                price.append(results[i].find_all("dd")[0].get_text().strip())
-            except Exception:
-                price.append(None)
+            # step through each listing in the search page, appending data
+            for i in range(0, len(results)):
 
-            # add house size data to list
-            try:
-                house_size.append(results[i].find_all("dd")[1]
-                                  .get_text().strip())
-            except Exception:
-                house_size.append(None)
-
-            # add land size data to list
-            try:
-                land_size.append(results[i].find_all("dd")[3]
-                                 .get_text().strip())
-            except Exception:
-                land_size.append(None)
-
-            # add number of rooms to list
-            try:
-                rooms.append(results[i].find_all("dd")[2].get_text().strip())
-            except Exception:
-                rooms.append(None)
-
-            # add travel time data to list
-            try:
-                travel.append(results[i].find("div",
-                                              {"class": "float-left"}).get_text().strip()[:2])
-            except Exception:
-                travel.append(None)
-
-            # add location data to list
-            try:
-                location.append(results[i].find("div",
+                # add location data to list
+                try:
+                    city.append(results[i].find("div",
                                                 {"class": "result-list-entry__address"})
-                                .get_text().strip())
-            except Exception:
-                location.append(None)
+                                .get_text().strip().split(',', 2)[-1])
+                except Exception:
+                    city.append(None)
 
-            # add commission data to list
-            try:
-                commission.append(results[i].find("div", {"class":
-                                                          "result-list-entry__secondary-criteria-container"})
-                                  .get_text().strip().startswith('Provisions'))
-            except Exception:
-                commission.append(None)
+                # add price data to list
+                try:
+                    price.append(results[i].find_all("dd")[0].get_text().strip())
+                except Exception:
+                    price.append(None)
 
-            # add url link to list
-            try:
-                listing_url.append(url_parts[0][:32] + results[i]
-                                   .find('a')['href'])
-            except Exception:
-                listing_url.append(None)
+                # add house size data to list
+                try:
+                    house_size.append(results[i].find_all("dd")[1]
+                                      .get_text().strip())
+                except Exception:
+                    house_size.append(None)
 
-            # add availablilty data to list
-            available.append(True)
+                # add land size data to list
+                try:
+                    land_size.append(results[i].find_all("dd")[3]
+                                     .get_text().strip())
+                except Exception:
+                    land_size.append(None)
+
+                # add number of rooms to list
+                try:
+                    rooms.append(results[i].find_all("dd")[2].get_text().strip())
+                except Exception:
+                    rooms.append(None)
+
+                # add location data to list
+                try:
+                    location.append(results[i].find("div",
+                                                    {"class": "result-list-entry__address"})
+                                    .get_text().strip())
+                except Exception:
+                    location.append(None)
+
+                # add commission data to list
+                try:
+                    commission.append(results[i].find("div", {"class":
+                                                              "result-list-entry__secondary-criteria-container"})
+                                      .get_text().strip().startswith('Provisions'))
+                except Exception:
+                    commission.append(None)
+
+                # add url link to list
+                try:
+                    listing_url.append(url_parts[0][:32] + results[i]
+                                       .find('a')['href'])
+                except Exception:
+                    listing_url.append(None)
 
     # invert commission values
     commission = [not i for i in commission]
@@ -191,11 +184,9 @@ def get_data():
                  'house_size': house_size,
                  'land_size': land_size,
                  'rooms': rooms,
-                 'travel': travel,
                  'location': location,
                  'commission': commission,
-                 'listing_url': listing_url,
-                 'available': available}
+                 'listing_url': listing_url}
 
     return page_data
 
@@ -231,37 +222,46 @@ def clean_df(df):
 
 # export cleaned data
 def write_clean(df):
+
+    # delete old new listings CSV, if exists
+    if os.path.isfile(os.getcwd() + '/' + 'New_listings.csv'):
+        os.remove(os.getcwd() + '/' + 'New_listings.csv')
+
+    # define path for clean CSV
     clean_path = os.path.join(os.getcwd(), "Results", "Clean")
-    path_to_current = os.path.join(os.getcwd(), "Results", "Current")
+
+    # make the path if it doesn't exist
     if not os.path.isdir(clean_path):
         os.makedirs(clean_path)
-    if not os.path.isdir(path_to_current):
-        os.makedirs(path_to_current)
 
-    if not os.path.isfile(path_to_current + "Current_immoscout.csv"):
-        current_path_write = os.path.join(path_to_current,
-                                          "Current_immoscout.csv")
-
-        df.to_csv(current_path_write, sep=";", index=False)
+    # write as clean CSV
     clean_path_write = os.path.join(clean_path,
                                     "clean_" + current_datetime + ".csv")
 
     df.to_csv(clean_path_write, sep=";", index=False)
 
-    copy_current_df = pd.read_csv(path_to_current + '/Current_immoscout.csv', sep=';')
+    # check if an old current CSV exists
+    if os.path.isfile(os.getcwd() + '/' + 'Current_immoscout.csv'):
+        # load old current CSV as dataframe
+        old_current_df = pd.read_csv(os.getcwd() + '/' + 'Current_immoscout.csv', sep=';')
 
-    df.to_csv(path_to_current + '/Backup.csv', sep=';', index=False)
+        # make dataframe showing only new listings
 
-    current_df = pd.read_csv(path_to_current + '/Current_immoscout.csv', sep=';')
+        new_listings_df = pd.concat([df, old_current_df])
 
+        new_listings_df.drop_duplicates(subset='listing_url', keep=False, inplace=True)
 
-# update the current market DataFrame and write a copy
-def write_update(df):
-    update_path = os.path.join(os.getcwd(), "Results", "Current")
+        # write new listings CSV, if new listings exist
+        if not new_listings_df.empty:
+            new_listings_path_write = os.path.join(os.getcwd(), "New_listings.csv")
 
-    update_path_write = os.path.join(update_path,
-                                     "updated_" + current_datetime + ".csv")
-    df.to_csv(update_path_write, sep=";", index=False)
+            new_listings_df.to_csv(new_listings_path_write, sep=';', index=False)
+
+    # write as current CSV
+    current_path_write = os.path.join(os.getcwd(),
+                                      "Current_immoscout.csv")
+
+    df.to_csv(current_path_write, sep=";", index=False)
 
 
 # Driver code
