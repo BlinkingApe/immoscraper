@@ -1,9 +1,8 @@
 '''
-Webscraper for German immo sites
-
-TODO:
-    # Update a current market csv from individual crawls
+Webscraper for German real estate site
+immoscout24 - https://www.immobilienscout24.de/
 '''
+
 
 # module imports
 import requests
@@ -12,11 +11,14 @@ import pandas as pd
 from datetime import datetime
 import os
 
-# paste complete url from the immoscout search page
+# paste complete urls from the immoscout search page
+# apartments to buy search url
 wohnung_url = 'https://www.immobilienscout24.de/Suche/S-T/Wohnung-Kauf/Polygonsuche/ot%7BxHuwih@yg@mb@uLeBaUfJaVsOr@NkQajAj@qNxs@qiA%60OaGjUfJ%60S_Gxf@j_A%60Uc@bUeBv%5BiK%7CkAkmAni@%60%7DBqsCjuAaLhC_MzK/-/80,00-/EURO--200000,00?enteredFrom=result_list#/'
 
+# houses to buy search url
 haus_url = wohnung_url.replace('Wohnung', 'Haus')
 
+# apartments to rent search url
 rent_url = 'https://www.immobilienscout24.de/Suche/S-T/Wohnung-Miete/Polygonsuche/yxwxHgynh@k@e@jDO;_dyxHcmih@g%7D@oFw%5B%7DSaNvBm%5B_NaP~Fk_@%7BSkKy%60@aCkp@%60Ukb@dw@e%7C@%60Fq@%60%5DvQx%60@zp@%60POvRtPpx@aW~FzET%7CLkHvkAhBhh@aOhZ/-/80,00-/EURO--1000,00?enteredFrom=result_list#/'
 
 # get current date#
@@ -60,9 +62,8 @@ def make_soup(url):
         print("make_soup:Problem reading from BeautifulSoup")
         raise SystemExit(0)
 
+
 # crawl for data and output a pandas dataframe
-
-
 def get_data():
 
     search_url_list = [haus_url, wohnung_url, rent_url]
@@ -91,9 +92,11 @@ def get_data():
 
         try:
             number_pages = max([int(n["value"]) for n in soup.find_all("option")])
-        # generate a link for each page of search results
+        # in case of only a single page of results
         except Exception:
             number_pages = 1
+
+        # generate a link for each page of search results
         for i in range(1, number_pages + 1):
             link_list.append(url_parts[0] + 'P-' + str(i) + '/' +
                              url_parts[1])
@@ -194,10 +197,14 @@ def get_data():
 # export raw data
 def write_raw(df):
 
+    # set path to raw csv save location
     raw_path = os.path.join(os.getcwd(), "Results", "Raw")
+
+    # make the directory if it doesn't exist
     if not os.path.isdir(raw_path):
         os.makedirs(raw_path)
 
+    # write raw csv
     raw_path_write = os.path.join(raw_path,
                                   "raw_" + current_datetime + ".csv")
 
@@ -207,14 +214,21 @@ def write_raw(df):
 # clean data
 def clean_df(df):
 
+    # replace 'NaN' values with 'none'
     df = df.fillna(value='none')
+
+    # delete duplicate entries
     df = df.drop_duplicates()
+
+    # delete unnecesary characters
     df['price'] = [x.strip().replace('€', '') for x in df['price']]
     df['price'] = [x.strip().replace('.', '') for x in df['price']]
     df['house_size'] = [x.strip().replace("m²", "") for x in df['house_size']]
     df['land_size'] = [x.strip().replace("m²", "") for x in df['land_size']]
     df['house_size'] = [x.strip().replace(".", "") for x in df['house_size']]
     df['land_size'] = [x.strip().replace(".", "") for x in df['land_size']]
+
+    # handle half room cases
     df['rooms'] = [x.strip().split('.', 1)[1] for x in df['rooms']]
 
     return df
@@ -246,17 +260,16 @@ def write_clean(df):
         old_current_df = pd.read_csv(os.getcwd() + '/' + 'Current_immoscout.csv', sep=';')
 
         # make dataframe showing only new listings
-
         new_listings_df = pd.concat([df, old_current_df])
-
         new_listings_df.drop_duplicates(subset='listing_url', keep=False, inplace=True)
 
         # write new listings CSV, if new listings exist
         if not new_listings_df.empty:
             new_listings_path_write = os.path.join(os.getcwd(), "New_listings.csv")
-
             new_listings_df.to_csv(new_listings_path_write, sep=';', index=False)
-
+            print('New listings!')
+        else:
+            print('No new listings')
     # write as current CSV
     current_path_write = os.path.join(os.getcwd(),
                                       "Current_immoscout.csv")
